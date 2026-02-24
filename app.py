@@ -1,173 +1,140 @@
-import math
 import random
-import numpy as np
 
-# --- PARAMETER (kannst du bei Bedarf anpassen) ---
-longCrom = 100  # Länge des Chromosoms (höher = genauere Lösung)
-K = 50  # Populationsgröße
-M = 100  # Anzahl der Generationen
-pm = 0.05  # Mutationswahrscheinlichkeit
+# ============================================
+# 1. PARAMETER UND INITIALISIERUNG
+# ============================================
+random.seed(42)  # para reproducir
 
+N_PARTIDOS = 5
+N_CURULES = 50
+N_ENTIDADES = 50
 
+# Namen der Parteien
+partidos = ["Partido A", "Partido B", "Partido C", "Partido D", "Partido E"]
 
-# ==========================================
-def ecuacion(x):
-    valor = math.sin(10 * math.pi * x) + 1
-    return valor
+# Asientos:
+# Ejemplo: [18, 5, 2, 15, 10] (Summe = 50)
+curules = [18, 5, 2, 15, 10]
+prop_curules = [c / N_CURULES for c in curules]  # Ziel-Prozente (z.B. 36%, 10%, 4%, 30%, 20%)
 
+# 50 Behörden mit zufälligen Gewichten (Macht) von 1 bis 100
+pesos = [random.randint(1, 100) for _ in range(N_ENTIDADES)]
+poder_total = sum(pesos)
 
-# ==========================================
-#  INTERVALL 3.10.1: x ∈ [0,1]
-# ==========================================
-def decodificar(cromosoma):
-    xi = 0.0  # x_min = 0
-    xf = 1.0  # x_max = 1
-
-    Max = float(2 ** longCrom)
-    valorDecimal = 0.0
-    for i in range(longCrom):
-        if cromosoma[i] == 1:
-            valorDecimal += 2.0 ** (longCrom - i - 1)
-
-    valDeco = ((xf - xi) / Max) * valorDecimal + xi
-    return valDeco
+# AG Parameter
+POP_SIZE = 100
+GENERACIONES = 400
+TASA_MUTACION = 0.05
+TAM_TORNEO = 3
 
 
-def genera(K, longCrom):
-    Pob_nueva = np.zeros([K, longCrom], dtype=int)
-    j = 0
-    while j < K:
-        cromosoma = [random.randint(0, 1) for i in range(longCrom)]
-        Pob_nueva[j] = cromosoma
-        j += 1
-    return Pob_nueva
+# ============================================
+# 2. Funcion
+# ============================================
+
+# Ein Chromosom ist eine Liste von 50 Zahlen (0 bis 4).
+# z.B. [0, 4, 1, 0, ...] bedeutet: Entität 0 geht an Partei 0 (A), Entität 1 an Partei 4 (E) usw.
+def crear_individuo():
+    return [random.randint(0, N_PARTIDOS - 1) for _ in range(N_ENTIDADES)]
 
 
-def evalua(Pob_nueva):
-    vectorX = np.zeros(K, dtype=float)
-    aptitud = np.zeros(K, dtype=float)
+# Wie gut ist die Verteilung? (Ziel: Anteil an Macht soll Anteil an Sitzen entsprechen)
+def evaluar_fitness(individuo):
+    poder_partidos = [0] * N_PARTIDOS
 
-    i = 0
-    while i < K:
-        t, x = res_Funcion(Pob_nueva[i])
-        vectorX[i] = x
+    # 1. Berechne, wie viel Macht jede Partei in diesem Chromosom bekommt
+    for idx_entidad, partido in enumerate(individuo):
+        poder_partidos[partido] += pesos[idx_entidad]
 
-        # FITNESS FÜR MAXIMIERUNG von sin(10πx) + 1
-        # Da der Wertebereich [0, 2] ist, addieren wir +1000 für positive Fitness:
-        aptitud[i] = t + 1000
+    # 2. Berechne den Fehler (Mean Squared Error) im Vergleich zu den Sitzen
+    error = 0
+    for p in range(N_PARTIDOS):
+        prop_poder_actual = poder_partidos[p] / poder_total
+        error += (prop_poder_actual - prop_curules[p]) ** 2
 
-        i += 1
-
-    Apt_total = float(sum(aptitud))
-    if Apt_total == 0:
-        Apt_total = 1e-9
-
-    probab = [j / Apt_total for j in aptitud]
-    probab = np.array(probab)
-
-    maxIndex = np.argmax(probab)
-    probab[maxIndex] = 0.99
-
-    return probab, vectorX
+    # Fitness maximieren: Je kleiner der Fehler, desto höher die Fitness
+    return 1.0 / (1.0 + error * 10000)
 
 
-def res_Funcion(cromosoma):
-    x = decodificar(cromosoma)
-    funcion = ecuacion(x)
-    return funcion, x
+def seleccion_torneo(poblacion, fitness_list):
+    # Wähle zufällig TAM_TORNEO Individuen aus und nimm das beste
+    indices = random.sample(range(POP_SIZE), TAM_TORNEO)
+    mejor_idx = max(indices, key=lambda i: fitness_list[i])
+    return poblacion[mejor_idx][:]
 
 
-def cruce(Pob_nueva, Probabilidad):
-    maxIndex = np.argmax(Probabilidad)
-    i = 0
-    while (i < K - 1):
-        if Probabilidad[i] < 0.97:
-            rand = random.randint(2, longCrom - 1)
-            padre1 = Pob_nueva[i].copy()
-            padre2 = Pob_nueva[i + 1].copy()
-            j = rand
-            while (j < longCrom):
-                bit = padre1[j]
-                padre1[j] = padre2[j]
-                padre2[j] = bit
-                j += 1
-            Pob_nueva[i] = padre1
-            Pob_nueva[i + 1] = padre2
-        else:
-            if maxIndex % 2 == 0:
-                Pob_nueva[i] = Pob_nueva[maxIndex].copy()
-            else:
-                Pob_nueva[i + 1] = Pob_nueva[maxIndex].copy()
-        i += 2
-    return Pob_nueva
+def cruzamiento(p1, p2):
+    # 2-Punkt-Crossover (Tausche den Mittelteil zwischen zwei Eltern)
+    punto1, punto2 = sorted(random.sample(range(N_ENTIDADES), 2))
+    hijo = p1[:]
+    hijo[punto1:punto2] = p2[punto1:punto2]
+    return hijo
 
 
-def muta(Pob_nueva, pm):
-    totalbits = K * longCrom
-    segmento = 1 / pm
-    n_segmentos = int(totalbits / segmento)
-    i = 0
-    while (i < n_segmentos - 1):
-        aleatorio = random.randint(0, int(segmento) - 1)
-        posic = int(i * segmento + aleatorio)
-        y = int(posic / longCrom)
-        cromosoma = Pob_nueva[y]
-        x = posic - longCrom * y
-        if (cromosoma[x - 1] == 0):
-            cromosoma[x - 1] = 1
-        else:
-            cromosoma[x - 1] = 0
-        i += 1
-    return Pob_nueva
+def mutacion(individuo):
+    # Ändere zufällig mit 5% Wahrscheinlichkeit die Zuordnung eines Ministeriums
+    for i in range(N_ENTIDADES):
+        if random.random() < TASA_MUTACION:
+            individuo[i] = random.randint(0, N_PARTIDOS - 1)
+    return individuo
 
 
-def seleccion_ruleta(poblacion, probabilidad):
-    chosen = []
-    while len(chosen) < K:
-        for n in range(K):
-            r = random.random()
-            for i, individuo in enumerate(poblacion):
-                if i >= K:
-                    break
-                if r <= probabilidad[i]:
-                    chosen.append(list(individuo))
-                    break
-            if len(chosen) >= K:
-                break
-    return chosen
+# ============================================
+# 3. Main
+# ============================================
+print(f"Buscando distribución para {poder_total} puntos de poder en total...\n")
 
+poblacion = [crear_individuo() for _ in range(POP_SIZE)]
+mejor_individuo = None
+mejor_fitness = -1
 
-# ==========================================
-# Resultados: TAREA 3.10.1
-# ==========================================
-print("Algoritmo Genético 3.10.1:")
-print("f(x) = sin(10πx) + 1, x ∈ [0,1]")
-print("Objetivo: El máximo global\n")
+for gen in range(GENERACIONES):
+    fitness_list = [evaluar_fitness(ind) for ind in poblacion]
 
-Pob_nueva3 = genera(K, longCrom)
-prob_cromosoma, vectorX = evalua(Pob_nueva3)
-i = 0
+    # Bestes Individuum der aktuellen Generation finden
+    idx_mejor_actual = fitness_list.index(max(fitness_list))
+    if fitness_list[idx_mejor_actual] > mejor_fitness:
+        mejor_fitness = fitness_list[idx_mejor_actual]
+        mejor_individuo = poblacion[idx_mejor_actual][:]
 
-while (i < M):
-    Pob_vieja = Pob_nueva3
-    Pob_nueva1 = seleccion_ruleta(Pob_vieja, prob_cromosoma)
-    Pob_nueva2 = cruce(np.array(Pob_nueva1), prob_cromosoma)
-    Pob_nueva3 = muta(Pob_nueva2, pm)
-    prob_cromosoma, vectorX = evalua(Pob_nueva3)
+    # Elitismus: Das beste Individuum kommt direkt in die nächste Generation
+    nueva_poblacion = [poblacion[idx_mejor_actual][:]]
 
-    maxIndex = np.argmax(prob_cromosoma)
-    mejorx = vectorX[maxIndex]
-    val = ecuacion(mejorx)
+    # Rest der Population durch Evolution auffüllen
+    while len(nueva_poblacion) < POP_SIZE:
+        padre1 = seleccion_torneo(poblacion, fitness_list)
+        padre2 = seleccion_torneo(poblacion, fitness_list)
+        hijo = cruzamiento(padre1, padre2)
+        hijo = mutacion(hijo)
+        nueva_poblacion.append(hijo)
 
-    # Salida cada 10 generaciones
-    if i % 10 == 0 or i == M - 1:
-        print(f"Generación {i:3d}: Mejor x = {mejorx:.6f} | f(x) = {val:.6f}")
+    poblacion = nueva_poblacion
 
-    i += 1
+# ============================================
+# 4. AUSWERTUNG/Resultados
+# ============================================
+poder_final = [0] * N_PARTIDOS
+for idx_entidad, partido in enumerate(mejor_individuo):
+    poder_final[partido] += pesos[idx_entidad]
 
-print("\n" + "=" * 60)
-print("¡TAREA 3.10.1!")
-print(f"El máximo encontrado está en x = {mejorx:.6f}")
-print(f"Valor de la función f(x) = {val:.6f}")
-print("Teóricamente esperados: x = 0.1, 0.3, 0.5, 0.7, 0.9 (períodos de sin(10πx))")
-print("=" * 60)
+print(f"{'Partido':<12} | {'Curules':>7} | {'% Objetivo':>10} | {'Poder Asignado':>15} | {'% Logrado':>10}")
+print("-" * 65)
+for p in range(N_PARTIDOS):
+    prop_lograda = poder_final[p] / poder_total * 100
+    prop_objetivo = prop_curules[p] * 100
+    print(
+        f"{partidos[p]:<12} | {curules[p]:>7} | {prop_objetivo:>9.1f}% | {poder_final[p]:>15} | {prop_lograda:>9.1f}%")
+
+print("\nMATRIZ DE PODER (Todas las 50 entidades):")
+print(f"{'Entidad':<12} | {'Peso':>4} | {'A':>3} | {'B':>3} | {'C':>3} | {'D':>3} | {'E':>3} |")
+print("-" * 51)
+for i in range(N_ENTIDADES):
+    asignacion = ["  -" for _ in range(N_PARTIDOS)]
+    partido_asignado = mejor_individuo[i]
+    asignacion[partido_asignado] = f"{pesos[i]:>3}"
+    print(f"Entidad {i+1:>2}   | {pesos[i]:>4} |", " | ".join(asignacion) + " |")
+
+print("-" * 51)
+# Extra: Die Summe ganz unten zum Überprüfen
+sumas_str = [f"{poder_final[p]:>3}" for p in range(N_PARTIDOS)]
+print(f"{'TOTAL PODER':<12} | {poder_total:>4} |", " | ".join(sumas_str) + " |")
