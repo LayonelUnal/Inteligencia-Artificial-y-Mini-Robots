@@ -2,11 +2,11 @@ import math
 import random
 import numpy as np
 
-# --- PARAMETER (kannst du bei Bedarf anpassen) ---
-longCrom = 100  # Länge des Chromosoms (höher = genauere Lösung)
-K = 50  # Populationsgröße
-M = 100  # Anzahl der Generationen
-pm = 0.05  # Mutationswahrscheinlichkeit
+# --- PARAMETER ---
+longCrom = 100  # Tamano/Länge Chromosoms
+K = 50  # Tamaño de población/ Populationsgröße
+M = 100  # Número de Generaciones / Anzahl der Generationen
+pm = 0.05  # Probabilidad de Mutacion/ Mutationswahrscheinlichkeit
 
 
 
@@ -171,3 +171,4 @@ print(f"El máximo encontrado está en x = {mejorx:.6f}")
 print(f"Valor de la función f(x) = {val:.6f}")
 print("Teóricamente esperados: x = 0.1, 0.3, 0.5, 0.7, 0.9 (períodos de sin(10πx))")
 print("=" * 60)
+
