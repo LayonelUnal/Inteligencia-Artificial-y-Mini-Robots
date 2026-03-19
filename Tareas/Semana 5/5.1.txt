@@ -1,0 +1,25 @@
+Para la compuerta NAND la red neuronal con dos capas ocultas convrge a una perdida muy pequeña (≈0.006 en la época 5000) y reproduce correctamente la tabla de verdad [1, 1, 1, 0] para las cuatro combinaciones de entrada, para lo que aprende la función NAND de forma adecuada. En cambio, para la compuerta XOR la pérdida se estabiliza en 0.125 y la red no logra aproximar bien la función (las salidas predichas no coinciden con [0, 1, 1, 0]), lo que muestra la dificultad de aprender XOR con esta configuración y resalta el papel de la arquitectura y de la inicialización en problemas no linealmente separables.
+
+
+=== Red neuronal para compuerta NAND ===
+Epoche 1000, Loss: 0.093707
+Epoche 2000, Loss: 0.093499
+Epoche 3000, Loss: 0.092176
+Epoche 4000, Loss: 0.074868
+Epoche 5000, Loss: 0.005968
+Entradas:
+[[0 0 1 1]
+ [0 1 0 1]]
+Salidas predichas (redondeadas):
+[[1 1 1 0]]
+=== Red neuronal para compuerta XOR ===
+Epoche 2000, Loss: 0.125000
+Epoche 4000, Loss: 0.125000
+Epoche 6000, Loss: 0.125000
+Epoche 8000, Loss: 0.125000
+Epoche 10000, Loss: 0.125000
+Entradas:
+[[0 0 1 1]
+ [0 1 0 1]]
+ Salidas predichas (redondeadas):
+[[1 0 1 0]]
